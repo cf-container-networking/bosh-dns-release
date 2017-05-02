@@ -10,6 +10,7 @@ import (
 
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	"github.com/cloudfoundry/bosh-utils/system"
+	"github.com/cloudfoundry/dns-release/src/acceptance_tests/gbosh"
 	"os"
 	"path/filepath"
 	"testing"
@@ -21,58 +22,29 @@ func TestAcceptance(t *testing.T) {
 }
 
 var (
-	boshBinaryPath string
-	boshDeployment string
+	boshDeployment gbosh.Deployment
 )
 
 var _ = BeforeSuite(func() {
-	boshBinaryPath = assertEnvExists("BOSH_BINARY_PATH")
-	assertEnvExists("BOSH_CLIENT")
-	assertEnvExists("BOSH_CLIENT_SECRET")
-	assertEnvExists("BOSH_CA_CERT")
-	assertEnvExists("BOSH_ENVIRONMENT")
-	boshDeployment = fmt.Sprintf("%s-override-nameserver", assertEnvExists("BOSH_DEPLOYMENT"))
+	director := gbosh.NewDirectorFromEnv()
+	boshDeployment = director.NewDeployment()
 
-	cmdRunner := system.NewExecCmdRunner(boshlog.NewLogger(boshlog.LevelDebug))
+	dnsReleasePath, _ := filepath.Abs("../../../../../")
+	aliasProvidingPath, _ := filepath.Abs("../../../dns-acceptance-release")
 
-	manifestPath, err := filepath.Abs("../../../../../ci/assets/manifest.yml")
-	Expect(err).ToNot(HaveOccurred())
-	defaultBindOpsPath, err := filepath.Abs("../../../../../ci/assets/use-dns-release-default-bind-and-alias-addresses.yml")
-	Expect(err).ToNot(HaveOccurred())
-	disableOverridePath, err := filepath.Abs("disable-override-nameserver.yml")
-	Expect(err).ToNot(HaveOccurred())
-	dnsReleasePath, err := filepath.Abs("../../../../../")
-	Expect(err).ToNot(HaveOccurred())
-	aliasProvidingPath, err := filepath.Abs("../../../dns-acceptance-release")
-	Expect(err).ToNot(HaveOccurred())
-
-	stdOut, stdErr, exitStatus, err := cmdRunner.RunCommand(boshBinaryPath,
-		"-n", "-d", boshDeployment, "deploy",
-		"-v", fmt.Sprintf("name=%s", boshDeployment),
-		"-v", fmt.Sprintf("dns_release_path=%s", dnsReleasePath),
-		"-v", fmt.Sprintf("acceptance_release_path=%s", aliasProvidingPath),
-		"-o", defaultBindOpsPath,
-		"-o", disableOverridePath,
-		manifestPath,
+	boshDeployment.ExecuteDeploy(
+		"../../../../../ci/assets/manifest.yml",
+		[]string{
+			"../../../../../ci/assets/use-dns-release-default-bind-and-alias-addresses.yml",
+			"scenario.yml",
+		},
+		map[string]string{
+			"dns_release_path":        dnsReleasePath,
+			"acceptance_release_path": aliasProvidingPath,
+		},
 	)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(exitStatus).To(Equal(0), fmt.Sprintf("stdOut: %s \n stdErr: %s", stdOut, stdErr))
 })
 
 var _ = AfterSuite(func() {
-	cmdRunner := system.NewExecCmdRunner(boshlog.NewLogger(boshlog.LevelDebug))
-
-	stdOut, stdErr, exitStatus, err := cmdRunner.RunCommand(boshBinaryPath,
-		"-n", "-d", boshDeployment, "delete-deployment",
-	)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(exitStatus).To(Equal(0), fmt.Sprintf("stdOut: %s \n stdErr: %s", stdOut, stdErr))
+	boshDeployment.ExecuteDelete()
 })
-
-func assertEnvExists(envName string) string {
-	val, found := os.LookupEnv(envName)
-	if !found {
-		Fail(fmt.Sprintf("Expected %s", envName))
-	}
-	return val
-}

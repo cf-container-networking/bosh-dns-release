@@ -6,8 +6,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"os/exec"
-
 	"github.com/onsi/gomega/gexec"
 	"time"
 )
@@ -15,9 +13,7 @@ import (
 var _ = Describe("aliases", func() {
 	Context("custom alias endpoint", func() {
 		It("aliases the request", func() {
-			cmd := exec.Command(boshBinaryPath, []string{"ssh", "-d", boshDeployment, "dns/0", "-c", "dig +time=3 +tries=1 -t A healthiness.example.com."}...)
-			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
-			Expect(err).NotTo(HaveOccurred())
+			session := boshDeployment.StartSSH("dns/0", "-c", "dig +time=3 +tries=1 -t A healthiness.example.com.")
 
 			Eventually(session, 10*time.Second).Should(gexec.Exit())
 

@@ -3,6 +3,3 @@
   value:
     healthiness.example.com.:
     - healthcheck.bosh-dns.
-- path: /name
-  type: replace
-  value: ((name))

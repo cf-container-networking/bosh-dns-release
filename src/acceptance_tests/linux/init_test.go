@@ -1,19 +1,13 @@
-// +build linux darwin
-
 package linux_test
 
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"encoding/json"
-	"fmt"
+	"github.com/cloudfoundry/dns-release/src/acceptance_tests/gbosh"
 	"github.com/onsi/gomega/gexec"
-	"os"
-	"os/exec"
-	"strings"
+	"path/filepath"
 	"testing"
-	"time"
 )
 
 func TestLinux(t *testing.T) {
@@ -22,66 +16,32 @@ func TestLinux(t *testing.T) {
 }
 
 var (
-	boshBinaryPath       string
-	allDeployedInstances []instanceInfo
-	firstInstanceSlug    string
+	boshDeployment gbosh.Deployment
 )
 
 var _ = BeforeSuite(func() {
-	boshBinaryPath = assertEnvExists("BOSH_BINARY_PATH")
-	assertEnvExists("BOSH_CLIENT")
-	assertEnvExists("BOSH_CLIENT_SECRET")
-	assertEnvExists("BOSH_CA_CERT")
-	assertEnvExists("BOSH_ENVIRONMENT")
-	assertEnvExists("BOSH_DEPLOYMENT")
+	director := gbosh.NewDirectorFromEnv()
+	boshDeployment = director.NewDeployment()
 
-	allDeployedInstances = getInstanceInfos(boshBinaryPath)
-	firstInstanceSlug = fmt.Sprintf("%s/%s", allDeployedInstances[0].InstanceGroup, allDeployedInstances[0].InstanceID)
+	dnsReleasePath, _ := filepath.Abs("../../../")
+	aliasProvidingPath, _ := filepath.Abs("../dns-acceptance-release")
+
+	boshDeployment.ExecuteDeploy(
+		"../../../ci/assets/manifest.yml",
+		[]string{
+			"../../../ci/assets/two-instances-no-static-ips.yml",
+			"../../../ci/assets/use-dns-release-default-bind-and-alias-addresses.yml",
+			"../../../ci/assets/configure-recursor.yml",
+		},
+		map[string]string{
+			"dns_release_path":        dnsReleasePath,
+			"acceptance_release_path": aliasProvidingPath,
+			"recursor_ip":             "172.17.0.1:9955",
+		},
+	)
 })
 
 var _ = AfterSuite(func() {
+	boshDeployment.ExecuteDelete()
 	gexec.CleanupBuildArtifacts()
 })
-
-func assertEnvExists(envName string) string {
-	val, found := os.LookupEnv(envName)
-	if !found {
-		Fail(fmt.Sprintf("Expected %s", envName))
-	}
-	return val
-}
-
-type instanceInfo struct {
-	IP            string
-	InstanceID    string
-	InstanceGroup string
-}
-
-func getInstanceInfos(boshBinary string) []instanceInfo {
-	cmd := exec.Command(boshBinary, "instances", "--json")
-	session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
-	Expect(err).NotTo(HaveOccurred())
-	Eventually(session, 10*time.Second).Should(gexec.Exit(0))
-
-	var response struct {
-		Tables []struct {
-			Rows []map[string]string
-		}
-	}
-
-	out := []instanceInfo{}
-
-	json.Unmarshal(session.Out.Contents(), &response)
-
-	for _, row := range response.Tables[0].Rows {
-		instanceStrings := strings.Split(row["instance"], "/")
-
-		out = append(out, instanceInfo{
-			IP:            row["ips"],
-			InstanceGroup: instanceStrings[0],
-			InstanceID:    instanceStrings[1],
-		})
-	}
-
-	return out
-}

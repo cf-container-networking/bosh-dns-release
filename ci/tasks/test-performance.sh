@@ -17,7 +17,6 @@ chmod 400 /tmp/jumpbox_ssh_key.pem
 export BOSH_GW_PRIVATE_KEY="/tmp/jumpbox_ssh_key.pem"
 export BOSH_GW_USER="jumpbox"
 export BOSH_DIRECTOR_IP="10.245.0.3"
-export BOSH_BINARY_PATH=$(which bosh)
 export BOSH_DEPLOYMENT="bosh-dns"
 
 bosh int /usr/local/bosh-deployment/docker/cloud-config.yml \
