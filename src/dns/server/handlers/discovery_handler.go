@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"github.com/cloudfoundry/bosh-utils/logger"
+	"github.com/cloudfoundry/dns-release/src/dns/server/records/dnsresolver"
 	"github.com/miekg/dns"
 	"net"
-	"github.com/cloudfoundry/dns-release/src/dns/server/records/dnsresolver"
 )
 
 type DiscoveryHandler struct {
@@ -22,26 +22,29 @@ func NewDiscoveryHandler(logger logger.Logger, localDomain dnsresolver.LocalDoma
 }
 
 func (d DiscoveryHandler) ServeDNS(responseWriter dns.ResponseWriter, req *dns.Msg) {
-	responseMsg := &dns.Msg{}
-	responseMsg.Authoritative = true
-	responseMsg.RecursionAvailable = false
-
-	if len(req.Question) == 0 {
-		responseMsg.SetRcode(req, dns.RcodeSuccess)
-	} else {
-		switch req.Question[0].Qtype {
-		case dns.TypeMX, dns.TypeAAAA:
-			responseMsg.SetRcode(req, dns.RcodeSuccess)
-		case dns.TypeA, dns.TypeANY:
-			responseMsg = d.buildARecords(responseWriter, req)
-		default:
-			responseMsg.SetRcode(req, dns.RcodeServerFailure)
-		}
-	}
-
+	responseMsg := d.buildResponseMsg(responseWriter, req)
 	if err := responseWriter.WriteMsg(responseMsg); err != nil {
 		d.logger.Error(d.logTag, err.Error())
 	}
+}
+
+func (d DiscoveryHandler) buildResponseMsg(responseWriter dns.ResponseWriter, req *dns.Msg) *dns.Msg {
+	defaultMessage := &dns.Msg{}
+	defaultMessage.Authoritative = true
+	defaultMessage.RecursionAvailable = false
+	defaultMessage.SetRcode(req, dns.RcodeSuccess)
+
+	if len(req.Question) > 0 {
+		switch req.Question[0].Qtype {
+		case dns.TypeA, dns.TypeANY:
+			return d.buildARecords(responseWriter, req)
+		case dns.TypeMX, dns.TypeAAAA:
+			return defaultMessage
+		default:
+			defaultMessage.SetRcode(req, dns.RcodeServerFailure)
+		}
+	}
+	return defaultMessage
 }
 
 func (d DiscoveryHandler) buildARecords(responseWriter dns.ResponseWriter, requestMsg *dns.Msg) *dns.Msg {
@@ -49,18 +52,5 @@ func (d DiscoveryHandler) buildARecords(responseWriter dns.ResponseWriter, reque
 	if _, ok := responseWriter.RemoteAddr().(*net.TCPAddr); ok {
 		protocol = dnsresolver.TCP
 	}
-
-	resolvedAnswer := d.localDomain.ResolveAnswer(requestMsg.Question[0].Name, []string{requestMsg.Question[0].Name}, protocol,requestMsg)
-
-	return resolvedAnswer
-}
-
-func (DiscoveryHandler) trimIfNeeded(resp *dns.Msg) {
-	numAnswers := len(resp.Answer)
-
-	for len(resp.Answer) > 0 && resp.Len() > 512 {
-		resp.Answer = resp.Answer[:len(resp.Answer)-1]
-	}
-
-	resp.Truncated = len(resp.Answer) < numAnswers
+	return d.localDomain.Resolve([]string{requestMsg.Question[0].Name}, protocol, requestMsg)
 }

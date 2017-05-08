@@ -209,7 +209,7 @@ var _ = Describe("main", func() {
 						_, _, err := c.Exchange(m, fmt.Sprintf("%s:%d", listenAddress, listenPort))
 						Expect(err).NotTo(HaveOccurred())
 
-						Eventually(session.Out).Should(gbytes.Say(`\[RequestLoggerHandler\].*handlers\.DiscoveryHandler Request \[1,1\] \[my-instance-2\.my-group\.my-network\.my-deployment-2\.bosh\.,my-instance\.my-group\.my-network\.my-deployment\.bosh\.\] 0 \d+ns`))
+						Eventually(session.Out).Should(gbytes.Say(`\[RequestLoggerHandler\].*handlers\.aliasedDomainsHandler Request \[1\] \[internal\.alias\.\] 0 \d+ns`))
 					})
 				})
 			})

@@ -18,7 +18,10 @@ type respWriterWrapperFunc struct {
 }
 
 func (r *respWriterWrapperFunc) WriteMsg(m *dns.Msg) error {
-	r.writeMsgFunc(m)
+	if m != nil {
+		r.writeMsgFunc(m)
+	}
+
 	return r.child.WriteMsg(m)
 }
 

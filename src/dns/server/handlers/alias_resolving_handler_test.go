@@ -13,6 +13,7 @@ import (
 	. "github.com/onsi/gomega"
 	"net"
 	"github.com/cloudfoundry/dns-release/src/dns/server/records/dnsresolver"
+	"github.com/cloudfoundry/dns-release/src/dns/clock/clockfakes"
 )
 
 var _ = Describe("AliasResolvingHandler", func() {
@@ -48,7 +49,7 @@ var _ = Describe("AliasResolvingHandler", func() {
 		})
 
 		var err error
-		handler, err = NewAliasResolvingHandler(childHandler, config, fakeDomainResolver, fakeLogger)
+		handler, err = NewAliasResolvingHandler(childHandler, config, fakeDomainResolver, &clockfakes.FakeClock{}, fakeLogger)
 		Expect(err).NotTo(HaveOccurred())
 	})
 
@@ -72,7 +73,7 @@ var _ = Describe("AliasResolvingHandler", func() {
 			})
 		})
 
-		Context("when the message contains a underscore style alias", func() {
+		Context("when the message contains an alias", func() {
 			It("translates the question preserving the capture", func() {
 				fakeResponse := &dns.Msg{
 					Answer: []dns.RR{
@@ -89,8 +90,8 @@ var _ = Describe("AliasResolvingHandler", func() {
 						},
 					},
 				}
-				fakeDomainResolver.ResolveAnswerStub = func(answerName string, resolutionNames []string, protocol dnsresolver.Protocol, actualRequestMsg *dns.Msg) *dns.Msg {
-					Expect(resolutionNames).To(ConsistOf("5.a2_domain1.", "5.b2_domain1."))
+				fakeDomainResolver.ResolveStub = func(aliasNames []string, protocol dnsresolver.Protocol, actualRequestMsg *dns.Msg) *dns.Msg {
+					Expect(aliasNames).To(ConsistOf("5.a2_domain1.", "5.b2_domain1."))
 					Expect(actualRequestMsg).To(Equal(requestMsg))
 					fakeResponse.SetRcode(requestMsg, dns.RcodeSuccess)
 					return fakeResponse
@@ -104,8 +105,7 @@ var _ = Describe("AliasResolvingHandler", func() {
 
 			It("returns a non successful return code when a resoution fails", func() {
 				fakeResponse := &dns.Msg{}
-				fakeDomainResolver.ResolveAnswerStub = func(answerName string, resolutionNames []string, protocol dnsresolver.Protocol, requestMsg *dns.Msg) *dns.Msg {
-					Expect(resolutionNames).To(ConsistOf("5.a2_domain1.", "5.b2_domain1."))
+				fakeDomainResolver.ResolveStub = func(aliasDomains []string, protocol dnsresolver.Protocol, requestMsg *dns.Msg) *dns.Msg {
 					fakeResponse.SetRcode(requestMsg, dns.RcodeServerFailure)
 					return fakeResponse
 				}
@@ -136,13 +136,13 @@ var _ = Describe("AliasResolvingHandler", func() {
 
 				Expect(fakeLogger.ErrorCallCount()).To(Equal(1))
 				tag, msg, args := fakeLogger.ErrorArgsForCall(0)
-				Expect(tag).To(Equal("AliasResolvingHandler"))
+				Expect(tag).To(Equal("AliasedHandler"))
 				Expect(msg).To(Equal("error writing response %s"))
 				Expect(args).To(ContainElement("failed to write message"))
 			})
 		})
 
-		Context("when the message contains an alias", func() {
+		Context("when the message contains a regular alias", func() {
 			It("resolves the alias before delegating", func() {
 				fakeResponse := &dns.Msg{
 					Answer: []dns.RR{
@@ -150,7 +150,9 @@ var _ = Describe("AliasResolvingHandler", func() {
 					},
 				}
 
-				fakeDomainResolver.ResolveAnswerStub = func(answerDomain string, quetsionDomains []string, requestMsg *dns.Msg) *dns.Msg {
+				fakeDomainResolver.ResolveStub = func(questionDomains []string, protocol dnsresolver.Protocol, requestMsg *dns.Msg) *dns.Msg {
+					Expect(requestMsg.Question[0].Name).To(Equal("alias2."))
+					Expect(questionDomains).To(Equal([]string{"a2_domain1."}))
 					fakeResponse.SetRcode(requestMsg, dns.RcodeSuccess)
 					return fakeResponse
 				}
@@ -180,7 +182,7 @@ var _ = Describe("AliasResolvingHandler", func() {
 				"alias2": {"a2_domain1"},
 			})
 
-			_, err := NewAliasResolvingHandler(childHandler, config, fakeDomainResolver, fakeLogger)
+			_, err := NewAliasResolvingHandler(childHandler, config, fakeDomainResolver, &clockfakes.FakeClock{}, fakeLogger)
 			Expect(err).To(HaveOccurred())
 		})
 	})

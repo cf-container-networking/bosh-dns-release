@@ -55,8 +55,7 @@ var _ = Describe("LocalDomain", func() {
 
 			req := &dns.Msg{}
 			req.SetQuestion("answer.bosh.", dns.TypeA)
-			responseMsg := localDomain.ResolveAnswer(
-				"answer.bosh.",
+			responseMsg := localDomain.Resolve(
 				[]string{
 					"instance-1.group-1.network-name.deployment-name.bosh.",
 					"instance-2.group-2.network-name.deployment-name.bosh.",
@@ -116,8 +115,7 @@ var _ = Describe("LocalDomain", func() {
 
 			req := &dns.Msg{}
 			req.SetQuestion("ignored", dns.TypeA)
-			responseMsg := localDomain.ResolveAnswer(
-				"answer.bosh.",
+			responseMsg := localDomain.Resolve(
 				[]string{
 					"instance-1.group-1.network-name.deployment-name.bosh.",
 					"instance-2.group-1.network-name.deployment-name.bosh.",
@@ -201,8 +199,7 @@ var _ = Describe("LocalDomain", func() {
 
 			Context("when the request is udp", func() {
 				It("truncates the response", func() {
-					responseMsg := localDomain.ResolveAnswer(
-						"my-instance.my-group.my-network.my-deployment.bosh.",
+					responseMsg := localDomain.Resolve(
 						[]string{"my-instance.my-group.my-network.my-deployment.bosh."},
 						UDP,
 						req,
@@ -217,8 +214,7 @@ var _ = Describe("LocalDomain", func() {
 
 			Context("when the request is tcp", func() {
 				It("does not truncate", func() {
-					responseMsg := localDomain.ResolveAnswer(
-						"my-instance.my-group.my-network.my-deployment.bosh.",
+					responseMsg := localDomain.Resolve(
 						[]string{"my-instance.my-group.my-network.my-deployment.bosh."},
 						TCP,
 						req,
@@ -255,8 +251,7 @@ var _ = Describe("LocalDomain", func() {
 
 			req := &dns.Msg{}
 			req.SetQuestion("instance-id-answer.group-1.network-name.deployment-name.bosh.", dns.TypeA)
-			responseMsg := localDomain.ResolveAnswer(
-				"instance-id-answer.group-1.network-name.deployment-name.bosh.",
+			responseMsg := localDomain.Resolve(
 				[]string{"instance-id.group-1.network-name.deployment-name.bosh."},
 				UDP,
 				req,
@@ -295,8 +290,7 @@ var _ = Describe("LocalDomain", func() {
 
 				req := &dns.Msg{}
 				req.SetQuestion("ignored", dns.TypeA)
-				responseMsg := localDomain.ResolveAnswer(
-					"instance-id-answer.group-1.network-name.deployment-name.bosh.",
+				responseMsg := localDomain.Resolve(
 					[]string{"instance-id.group-1.network-name.deployment-name.bosh."},
 					UDP,
 					req,
@@ -326,8 +320,7 @@ var _ = Describe("LocalDomain", func() {
 
 				req := &dns.Msg{}
 				req.SetQuestion("q-&^$*^*#^.group-1.network-name.deployment-name.bosh.", dns.TypeA)
-				responseMsg := localDomain.ResolveAnswer(
-					"q-&^$*^*#^.group-1.network-name.deployment-name.bosh.",
+				responseMsg := localDomain.Resolve(
 					[]string{"q-&^$*^*#^.group-1.network-name.deployment-name.bosh."},
 					UDP,
 					req,

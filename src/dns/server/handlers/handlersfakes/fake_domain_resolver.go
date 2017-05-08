@@ -10,76 +10,74 @@ import (
 )
 
 type FakeDomainResolver struct {
-	ResolveAnswerStub        func(answerDomain string, questionDomains []string, protocol dnsresolver.Protocol, requestMsg *dns.Msg) *dns.Msg
-	resolveAnswerMutex       sync.RWMutex
-	resolveAnswerArgsForCall []struct {
-		answerDomain    string
-		questionDomains []string
-		protocol        dnsresolver.Protocol
-		requestMsg      *dns.Msg
+	ResolveStub        func(aliasDomains []string, protocol dnsresolver.Protocol, requestMsg *dns.Msg) *dns.Msg
+	resolveMutex       sync.RWMutex
+	resolveArgsForCall []struct {
+		aliasDomains []string
+		protocol     dnsresolver.Protocol
+		requestMsg   *dns.Msg
 	}
-	resolveAnswerReturns struct {
+	resolveReturns struct {
 		result1 *dns.Msg
 	}
-	resolveAnswerReturnsOnCall map[int]struct {
+	resolveReturnsOnCall map[int]struct {
 		result1 *dns.Msg
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeDomainResolver) ResolveAnswer(answerDomain string, questionDomains []string, protocol dnsresolver.Protocol, requestMsg *dns.Msg) *dns.Msg {
-	var questionDomainsCopy []string
-	if questionDomains != nil {
-		questionDomainsCopy = make([]string, len(questionDomains))
-		copy(questionDomainsCopy, questionDomains)
+func (fake *FakeDomainResolver) Resolve(aliasDomains []string, protocol dnsresolver.Protocol, requestMsg *dns.Msg) *dns.Msg {
+	var aliasDomainsCopy []string
+	if aliasDomains != nil {
+		aliasDomainsCopy = make([]string, len(aliasDomains))
+		copy(aliasDomainsCopy, aliasDomains)
 	}
-	fake.resolveAnswerMutex.Lock()
-	ret, specificReturn := fake.resolveAnswerReturnsOnCall[len(fake.resolveAnswerArgsForCall)]
-	fake.resolveAnswerArgsForCall = append(fake.resolveAnswerArgsForCall, struct {
-		answerDomain    string
-		questionDomains []string
-		protocol        dnsresolver.Protocol
-		requestMsg      *dns.Msg
-	}{answerDomain, questionDomainsCopy, protocol, requestMsg})
-	fake.recordInvocation("ResolveAnswer", []interface{}{answerDomain, questionDomainsCopy, protocol, requestMsg})
-	fake.resolveAnswerMutex.Unlock()
-	if fake.ResolveAnswerStub != nil {
-		return fake.ResolveAnswerStub(answerDomain, questionDomains, protocol, requestMsg)
+	fake.resolveMutex.Lock()
+	ret, specificReturn := fake.resolveReturnsOnCall[len(fake.resolveArgsForCall)]
+	fake.resolveArgsForCall = append(fake.resolveArgsForCall, struct {
+		aliasDomains []string
+		protocol     dnsresolver.Protocol
+		requestMsg   *dns.Msg
+	}{aliasDomainsCopy, protocol, requestMsg})
+	fake.recordInvocation("Resolve", []interface{}{aliasDomainsCopy, protocol, requestMsg})
+	fake.resolveMutex.Unlock()
+	if fake.ResolveStub != nil {
+		return fake.ResolveStub(aliasDomains, protocol, requestMsg)
 	}
 	if specificReturn {
 		return ret.result1
 	}
-	return fake.resolveAnswerReturns.result1
+	return fake.resolveReturns.result1
 }
 
-func (fake *FakeDomainResolver) ResolveAnswerCallCount() int {
-	fake.resolveAnswerMutex.RLock()
-	defer fake.resolveAnswerMutex.RUnlock()
-	return len(fake.resolveAnswerArgsForCall)
+func (fake *FakeDomainResolver) ResolveCallCount() int {
+	fake.resolveMutex.RLock()
+	defer fake.resolveMutex.RUnlock()
+	return len(fake.resolveArgsForCall)
 }
 
-func (fake *FakeDomainResolver) ResolveAnswerArgsForCall(i int) (string, []string, dnsresolver.Protocol, *dns.Msg) {
-	fake.resolveAnswerMutex.RLock()
-	defer fake.resolveAnswerMutex.RUnlock()
-	return fake.resolveAnswerArgsForCall[i].answerDomain, fake.resolveAnswerArgsForCall[i].questionDomains, fake.resolveAnswerArgsForCall[i].protocol, fake.resolveAnswerArgsForCall[i].requestMsg
+func (fake *FakeDomainResolver) ResolveArgsForCall(i int) ([]string, dnsresolver.Protocol, *dns.Msg) {
+	fake.resolveMutex.RLock()
+	defer fake.resolveMutex.RUnlock()
+	return fake.resolveArgsForCall[i].aliasDomains, fake.resolveArgsForCall[i].protocol, fake.resolveArgsForCall[i].requestMsg
 }
 
-func (fake *FakeDomainResolver) ResolveAnswerReturns(result1 *dns.Msg) {
-	fake.ResolveAnswerStub = nil
-	fake.resolveAnswerReturns = struct {
+func (fake *FakeDomainResolver) ResolveReturns(result1 *dns.Msg) {
+	fake.ResolveStub = nil
+	fake.resolveReturns = struct {
 		result1 *dns.Msg
 	}{result1}
 }
 
-func (fake *FakeDomainResolver) ResolveAnswerReturnsOnCall(i int, result1 *dns.Msg) {
-	fake.ResolveAnswerStub = nil
-	if fake.resolveAnswerReturnsOnCall == nil {
-		fake.resolveAnswerReturnsOnCall = make(map[int]struct {
+func (fake *FakeDomainResolver) ResolveReturnsOnCall(i int, result1 *dns.Msg) {
+	fake.ResolveStub = nil
+	if fake.resolveReturnsOnCall == nil {
+		fake.resolveReturnsOnCall = make(map[int]struct {
 			result1 *dns.Msg
 		})
 	}
-	fake.resolveAnswerReturnsOnCall[i] = struct {
+	fake.resolveReturnsOnCall[i] = struct {
 		result1 *dns.Msg
 	}{result1}
 }
@@ -87,8 +85,8 @@ func (fake *FakeDomainResolver) ResolveAnswerReturnsOnCall(i int, result1 *dns.M
 func (fake *FakeDomainResolver) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.resolveAnswerMutex.RLock()
-	defer fake.resolveAnswerMutex.RUnlock()
+	fake.resolveMutex.RLock()
+	defer fake.resolveMutex.RUnlock()
 	return fake.invocations
 }
 

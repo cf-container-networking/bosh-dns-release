@@ -40,8 +40,8 @@ func NewLocalDomain(logger logger.Logger, recordSetRepo RecordSetRepo, shuffler 
 	}
 }
 
-func (d LocalDomain) ResolveAnswer(answerDomain string, questionDomains []string, protocol Protocol, requestMsg *dns.Msg) *dns.Msg {
-	answers, rCode := d.resolve(requestMsg.Question[0].Name, questionDomains)
+func (d LocalDomain) Resolve(aliasDomains []string, protocol Protocol, requestMsg *dns.Msg) *dns.Msg {
+	answers, rCode := d.resolve(requestMsg.Question[0].Name, aliasDomains)
 	responseMsg := &dns.Msg{}
 	responseMsg.Answer = answers
 	responseMsg.SetRcode(requestMsg, rCode)
@@ -53,7 +53,7 @@ func (d LocalDomain) ResolveAnswer(answerDomain string, questionDomains []string
 	return responseMsg
 }
 
-func (d LocalDomain) resolve(answerDomain string, questionDomains []string) ([]dns.RR, int) {
+func (d LocalDomain) resolve(questionDomain string, aliasDomains []string) ([]dns.RR, int) {
 	recordSet, err := d.recordSetRepo.Get()
 	if err != nil {
 		d.logger.Error(d.logTag, "failed to get ip addresses: %v", err)
@@ -62,8 +62,8 @@ func (d LocalDomain) resolve(answerDomain string, questionDomains []string) ([]d
 
 	answers := []dns.RR{}
 
-	for _, questionDomain := range questionDomains {
-		ips, err := recordSet.Resolve(questionDomain)
+	for _, aliasDomain := range aliasDomains {
+		ips, err := recordSet.Resolve(aliasDomain)
 		if err != nil {
 			d.logger.Error(d.logTag, "failed to decode query: %v", err)
 			return nil, dns.RcodeFormatError
@@ -72,7 +72,7 @@ func (d LocalDomain) resolve(answerDomain string, questionDomains []string) ([]d
 		for _, ip := range ips {
 			answers = append(answers, &dns.A{
 				Hdr: dns.RR_Header{
-					Name:   answerDomain,
+					Name:   questionDomain,
 					Rrtype: dns.TypeA,
 					Class:  dns.ClassINET,
 					Ttl:    0,
@@ -86,15 +86,15 @@ func (d LocalDomain) resolve(answerDomain string, questionDomains []string) ([]d
 }
 
 func (LocalDomain) trimIfNeeded(protocol Protocol, resp *dns.Msg) {
-		if protocol != UDP {
-			return
-		}
+	if protocol != UDP {
+		return
+	}
 
-		numAnswers := len(resp.Answer)
+	numAnswers := len(resp.Answer)
 
-		for len(resp.Answer) > 0 && resp.Len() > 512 {
-			resp.Answer = resp.Answer[:len(resp.Answer)-1]
-		}
+	for len(resp.Answer) > 0 && resp.Len() > 512 {
+		resp.Answer = resp.Answer[:len(resp.Answer)-1]
+	}
 
-		resp.Truncated = len(resp.Answer) < numAnswers
+	resp.Truncated = len(resp.Answer) < numAnswers
 }
