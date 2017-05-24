@@ -43,9 +43,31 @@ func (s Server) Run() error {
 	case <-done:
 	}
 
+	s.monitorHealthChecks()
+
 	select {
 	case <-s.shutdownChan:
 		return s.shutdown()
+	}
+}
+
+func (s Server) monitorHealthChecks() {
+	for _, healthcheck := range s.healthchecks {
+		go func(h HealthCheck, limit int) {
+			danger := 0
+			for {
+				if err := h.IsHealthy(); err != nil {
+					danger += 1
+					if danger >= limit && s.shutdownChan != nil {
+						close(s.shutdownChan)
+						s.shutdownChan = nil
+						return
+					}
+				}
+
+				time.Sleep(time.Second * 5)
+			}
+		}(healthcheck, 5)
 	}
 }
 

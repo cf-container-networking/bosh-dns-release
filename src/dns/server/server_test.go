@@ -88,7 +88,14 @@ func notListeningStub(stop chan struct{}) func() error {
 
 		return nil
 	}
+}
 
+func passthroughCheck(reactiveAnswerChan chan error) *serverfakes.FakeHealthCheck {
+	return &serverfakes.FakeHealthCheck{
+		IsHealthyStub: func() error {
+			return <-reactiveAnswerChan
+		},
+	}
 }
 
 func healthyCheck() *serverfakes.FakeHealthCheck {
@@ -229,9 +236,7 @@ var _ = Describe("Server", func() {
 						"tcp": 0,
 						"udp": 0,
 					}
-				})
 
-				BeforeEach(func() {
 					fakeDialer = func(protocol, address string) (net.Conn, error) {
 						lock.Lock()
 						fakeProtocolDialConn[protocol]++
@@ -251,6 +256,83 @@ var _ = Describe("Server", func() {
 
 					Expect(fakeProtocolConn["tcp"].CloseCallCount()).To(Equal(fakeProtocolDialConn["tcp"]))
 					Expect(fakeProtocolConn["udp"].CloseCallCount()).To(Equal(fakeProtocolDialConn["udp"]))
+				})
+			})
+
+			Context("when the TCP server suddenly stops working", func() {
+				var tcpHealthChan chan error
+
+				BeforeEach(func() {
+					tcpHealthChan = make(chan error)
+					udpHealthCheck = healthyCheck()
+					tcpHealthCheck = passthroughCheck(tcpHealthChan)
+				})
+
+				It("kills itself after five failures in a row", func() {
+					startFailing := make(chan struct{})
+					go func() {
+						defer GinkgoRecover()
+					dance:
+						for {
+							select {
+							case <-startFailing:
+								break dance
+							default:
+								tcpHealthChan <- nil
+							}
+						}
+
+						for i := 0; i < 5; i++ {
+							tcpHealthChan <- errors.New("deadbeef")
+						}
+					}()
+
+					dnsServerFinished := make(chan error)
+					go func() {
+						dnsServerFinished <- dnsServer.Run()
+					}()
+
+					Consistently(dnsServerFinished).ShouldNot(Receive())
+					close(startFailing)
+					Eventually(dnsServerFinished, time.Second*30).Should(Receive())
+				})
+			})
+
+			Context("when the UDP server suddenly stops working", func() {
+				var udpHealthChan chan error
+
+				BeforeEach(func() {
+					udpHealthChan = make(chan error)
+					udpHealthCheck = passthroughCheck(udpHealthChan)
+					tcpHealthCheck = healthyCheck()
+				})
+
+				It("kills itself after five failures in a row", func() {
+					startFailing := make(chan struct{})
+					go func() {
+					dance:
+						for {
+							select {
+							case <-startFailing:
+								break dance
+							default:
+								udpHealthChan <- nil
+							}
+						}
+
+						for i := 0; i < 5; i++ {
+							udpHealthChan <- errors.New("deadbeef")
+						}
+					}()
+
+					dnsServerFinished := make(chan error)
+					go func() {
+						dnsServerFinished <- dnsServer.Run()
+					}()
+
+					Consistently(dnsServerFinished).ShouldNot(Receive())
+					close(startFailing)
+					Eventually(dnsServerFinished, 30*time.Second).Should(Receive())
 				})
 			})
 
