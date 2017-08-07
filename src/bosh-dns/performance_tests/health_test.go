@@ -19,7 +19,6 @@ import (
 
 	"github.com/cloudfoundry/bosh-utils/httpclient"
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
-	"github.com/cloudfoundry/bosh-utils/system"
 	sigar "github.com/cloudfoundry/gosigar"
 )
 
@@ -31,7 +30,7 @@ type HealthResult struct {
 
 var _ = XDescribe("Health Server", func() {
 	var (
-		serverAddress     = "10.245.0.34:8853"
+		serverAddress     = "127.0.0.1:8853"
 		durationInSeconds = 5
 		workers           = 10
 	)
@@ -41,7 +40,7 @@ var _ = XDescribe("Health Server", func() {
 		httpClient := setupSecureGet()
 
 		healthResult := make(chan HealthResult, requestsPerSecond)
-		healthServerPID, found := GetPidFor("dns-health")
+		healthServerPID, found := GetPidFor("healthcheck")
 		Expect(found).To(BeTrue())
 
 		shutdown := make(chan struct{})
@@ -188,32 +187,12 @@ func MakeHealthEndpointRequest(client httpclient.HTTPClient, serverAddress strin
 }
 
 func setupSecureGet() httpclient.HTTPClient {
-	cmdRunner := system.NewExecCmdRunner(boshlog.NewLogger(boshlog.LevelDebug))
-	stdOut, stdErr, exitStatus, err := cmdRunner.RunCommand(boshBinaryPath,
-		"int", "creds.yml",
-		"--path", "/dns_healthcheck_client_tls/certificate",
-	)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(exitStatus).To(Equal(0), fmt.Sprintf("stdOut: %s \n stdErr: %s", stdOut, stdErr))
-	clientCertificate := stdOut
+	// Load client cert
+	cert, err := tls.LoadX509KeyPair("../healthcheck/assets/test_certs/test_client.pem", "../healthcheck/assets/test_certs/test_client.key")
+	Expect(err).NotTo(HaveOccurred())
 
-	stdOut, stdErr, exitStatus, err = cmdRunner.RunCommand(boshBinaryPath,
-		"int", "creds.yml",
-		"--path", "/dns_healthcheck_client_tls/private_key",
-	)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(exitStatus).To(Equal(0), fmt.Sprintf("stdOut: %s \n stdErr: %s", stdOut, stdErr))
-	clientPrivateKey := stdOut
-
-	stdOut, stdErr, exitStatus, err = cmdRunner.RunCommand(boshBinaryPath,
-		"int", "creds.yml",
-		"--path", "/dns_healthcheck_client_tls/ca",
-	)
-	Expect(err).ToNot(HaveOccurred())
-	Expect(exitStatus).To(Equal(0), fmt.Sprintf("stdOut: %s \n stdErr: %s", stdOut, stdErr))
-	caCert := stdOut
-
-	cert, err := tls.X509KeyPair([]byte(clientCertificate), []byte(clientPrivateKey))
+	// Load CA cert
+	caCert, err := ioutil.ReadFile("../healthcheck/assets/test_certs/test_ca.pem")
 	Expect(err).NotTo(HaveOccurred())
 
 	caCertPool := x509.NewCertPool()
@@ -221,7 +200,7 @@ func setupSecureGet() httpclient.HTTPClient {
 
 	logger := boshlog.NewAsyncWriterLogger(boshlog.LevelDebug, ioutil.Discard, ioutil.Discard)
 
-	return healthclient.NewHealthClient([]byte(caCert), cert, logger)
+	return healthclient.NewHealthClient(caCert, cert, logger)
 }
 
 func secureGetHealthEndpoint(client httpclient.HTTPClient, serverAddress string) (*http.Response, error) {

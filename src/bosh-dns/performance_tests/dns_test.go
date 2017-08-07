@@ -2,7 +2,6 @@ package performance_test
 
 import (
 	"math"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -17,7 +16,6 @@ import (
 	"github.com/rcrowley/go-metrics"
 
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 )
@@ -42,7 +40,7 @@ var _ = Describe("DNS", func() {
 		info                 PerformanceTestInfo
 		picker               zp.ZonePicker
 		label                string
-		dnsServerAddress     = "10.245.0.34:53"
+		dnsServerAddress     = "127.0.0.1:9953"
 
 		dnsServerPid int
 	)
@@ -171,7 +169,7 @@ var _ = Describe("DNS", func() {
 			label = "google.com zone"
 		})
 
-		It("handles DNS responses quickly for google zone", func() {
+		FIt("handles DNS responses quickly for google zone", func() {
 			time1, mem, cpu, duration := TestDNSPerformance(dnsServerAddress)
 			time2, _, _, _ := TestDNSPerformance("8.8.8.8:53")
 
@@ -186,13 +184,7 @@ var _ = Describe("DNS", func() {
 
 	Describe("using local bosh dns records", func() {
 		BeforeEach(func() {
-			cmd := exec.Command(boshBinaryPath, []string{"scp", "dns:/var/vcap/instance/dns/records.json", "records.json"}...)
-			err := cmd.Run()
-			if err != nil {
-				panic(fmt.Sprintf("Failed to bosh scp: %s", err.Error()))
-			}
-
-			recordsJsonBytes, err := ioutil.ReadFile("records.json")
+			recordsJsonBytes, err := ioutil.ReadFile("assets/records.json")
 			Expect(err).ToNot(HaveOccurred())
 			recordSet := records.RecordSet{}
 			err = json.Unmarshal(recordsJsonBytes, &recordSet)

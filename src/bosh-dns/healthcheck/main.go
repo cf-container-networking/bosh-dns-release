@@ -6,17 +6,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"runtime"
 	"time"
 
 	"bosh-dns/healthcheck/healthserver"
 
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
 	boshsys "github.com/cloudfoundry/bosh-utils/system"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 var healthServer healthserver.HealthServer
 
 func main() {
+	runtime.GOMAXPROCS(1)
 	os.Exit(mainExitCode())
 }
 
@@ -35,6 +40,8 @@ func mainExitCode() int {
 
 	fs := boshsys.NewOsFileSystem(logger)
 	healthServer = healthserver.NewHealthServer(logger, fs, config.HealthFileName)
+
+	go http.ListenAndServe(":8080", http.DefaultServeMux)
 
 	healthServer.Serve(config)
 	return 0

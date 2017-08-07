@@ -1,20 +1,23 @@
 package performance_test
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"net"
+	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
+	"testing"
+	"time"
 
+	sigar "github.com/cloudfoundry/gosigar"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gexec"
 	metrics "github.com/rcrowley/go-metrics"
-
-	"fmt"
-	"os"
-	"strings"
-	"testing"
-
-	"github.com/cloudfoundry/gosigar"
 )
 
 func TestPerformance(t *testing.T) {
@@ -23,16 +26,107 @@ func TestPerformance(t *testing.T) {
 }
 
 var (
-	boshBinaryPath string
+	healthSession *gexec.Session
+	dnsSession    *gexec.Session
 )
 
 var _ = BeforeSuite(func() {
-	boshBinaryPath = assertEnvExists("BOSH_BINARY_PATH")
-	assertEnvExists("BOSH_CLIENT")
-	assertEnvExists("BOSH_CLIENT_SECRET")
-	assertEnvExists("BOSH_CA_CERT")
-	assertEnvExists("BOSH_ENVIRONMENT")
-	assertEnvExists("BOSH_DEPLOYMENT")
+	// healthServerPath, err := gexec.Build("bosh-dns/healthcheck")
+	// Expect(err).NotTo(HaveOccurred())
+
+	dnsServerPath, err := gexec.Build("bosh-dns/dns")
+	Expect(err).NotTo(HaveOccurred())
+
+	SetDefaultEventuallyTimeout(2 * time.Second)
+
+	// healthConfigFile, err := ioutil.TempFile("", "config.json")
+	// Expect(err).ToNot(HaveOccurred())
+
+	// healthFile, err := ioutil.TempFile("", "health.json")
+	// Expect(err).ToNot(HaveOccurred())
+
+	// healthPort := 8853
+
+	// healthConfigContents, err := json.Marshal(healthserver.HealthCheckConfig{
+	// 	Port:            healthPort,
+	// 	CertificateFile: "../healthcheck/assets/test_certs/test_server.pem",
+	// 	PrivateKeyFile:  "../healthcheck/assets/test_certs/test_server.key",
+	// 	CAFile:          "../healthcheck/assets/test_certs/test_ca.pem",
+	// 	HealthFileName:  healthFile.Name(),
+	// })
+	// Expect(err).NotTo(HaveOccurred())
+
+	// err = ioutil.WriteFile(healthConfigFile.Name(), []byte(healthConfigContents), 0666)
+	// Expect(err).ToNot(HaveOccurred())
+
+	dnsConfigFile, err := ioutil.TempFile("", "config.json")
+	Expect(err).ToNot(HaveOccurred())
+
+	dnsPort := 9953
+
+	dnsConfigContents, err := json.Marshal(map[string]interface{}{
+		"address":          "127.0.0.1",
+		"port":             dnsPort,
+		"records_file":     "assets/records.json",
+		"alias_files_glob": "assets/aliases.json",
+		"upcheck_domains":  []string{"upcheck.bosh-dns."},
+		"recursors":        []string{"8.8.8.8"},
+		"recursor_timeout": "2s",
+		"health": map[string]interface{}{
+			"enabled": false,
+			// "port":             healthPort,
+			// "ca_file":          "../healthcheck/assets/test_certs/test_ca.pem",
+			// "certificate_file": "../healthcheck/assets/test_certs/test_client.pem",
+			// "private_key_file": "../healthcheck/assets/test_certs/test_client.key",
+			// "check_interval":   "20s",
+		},
+	})
+	Expect(err).NotTo(HaveOccurred())
+
+	err = ioutil.WriteFile(dnsConfigFile.Name(), []byte(dnsConfigContents), 0666)
+	Expect(err).ToNot(HaveOccurred())
+
+	var cmd *exec.Cmd
+	// cmd = exec.Command(healthServerPath, healthConfigFile.Name())
+	// healthSession, err = gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+	// Expect(err).ToNot(HaveOccurred())
+
+	// Expect(waitForServer(healthPort)).To(Succeed())
+
+	cmd = exec.Command(dnsServerPath, "--config="+dnsConfigFile.Name())
+	dnsSession, err = gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+	Expect(err).ToNot(HaveOccurred())
+
+	Expect(waitForServer(dnsPort)).To(Succeed())
+})
+
+func waitForServer(port int) error {
+	var err error
+	for i := 0; i < 20; i++ {
+		var c net.Conn
+		c, err = net.Dial("tcp", fmt.Sprintf("127.0.0.1:%s", strconv.Itoa(port)))
+		if err != nil {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+
+		_ = c.Close()
+		return nil
+	}
+
+	return err //errors.New("dns server failed to start")
+}
+
+var _ = AfterSuite(func() {
+	// if healthSession != nil && healthSession.Command.Process != nil {
+	// 	Eventually(healthSession.Kill()).Should(gexec.Exit())
+	// }
+
+	if dnsSession != nil && dnsSession.Command.Process != nil {
+		Eventually(dnsSession.Kill()).Should(gexec.Exit())
+	}
+
+	gexec.CleanupBuildArtifacts()
 })
 
 func assertEnvExists(envName string) string {

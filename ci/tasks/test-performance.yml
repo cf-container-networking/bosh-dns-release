@@ -8,8 +8,6 @@ image_resource:
 
 inputs:
   - name: dns-release
-  - name: bosh-candidate-stemcell
-  - name: bosh-candidate-release
 
 run:
   path: dns-release/ci/tasks/test-performance.sh
