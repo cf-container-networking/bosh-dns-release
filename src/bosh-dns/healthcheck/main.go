@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"bosh-dns/healthcheck/healthexecutable"
 	"bosh-dns/healthcheck/healthserver"
 
 	boshlog "github.com/cloudfoundry/bosh-utils/logger"
@@ -34,7 +35,8 @@ func mainExitCode() int {
 	}
 
 	fs := boshsys.NewOsFileSystem(logger)
-	healthServer = healthserver.NewHealthServer(logger, fs, config.HealthFileName)
+	healthExecutable := healthexecutable.NewHealthExecutable()
+	healthServer = healthserver.NewHealthServer(logger, fs, config.HealthFileName, healthExecutable)
 
 	healthServer.Serve(config)
 	return 0

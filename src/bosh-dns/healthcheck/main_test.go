@@ -70,6 +70,31 @@ var _ = Describe("HealthCheck server", func() {
 			})
 		})
 
+		Describe("when the vm is healthy, but the job health executable reports unhealthy", func() {
+			BeforeEach(func() {
+				healthExecutableFile.WriteString("\nexit 1")
+			})
+
+			It("returns unhealthy json output", func() {
+				client, err := healthclient.NewHealthClientFromFiles(
+					"assets/test_certs/test_ca.pem",
+					"assets/test_certs/test_client.pem",
+					"assets/test_certs/test_client.key", logger)
+				Expect(err).NotTo(HaveOccurred())
+
+				respData, err := secureGetRespBody(client, configPort)
+				Expect(err).ToNot(HaveOccurred())
+
+				var respJson map[string]string
+				err = json.Unmarshal(respData, &respJson)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(respJson).To(Equal(map[string]string{
+					"state": "job-health-executable-fail",
+				}))
+			})
+		})
+
 		Describe("When the vm is unhealthy", func() {
 			BeforeEach(func() {
 				status = "stopped"

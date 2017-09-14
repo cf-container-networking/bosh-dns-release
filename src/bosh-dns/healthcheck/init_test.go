@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -23,12 +24,13 @@ func TestHealthCheck(t *testing.T) {
 }
 
 var (
-	pathToServer string
-	sess         *gexec.Session
-	cmd          *exec.Cmd
-	healthFile   *os.File
-	configFile   *os.File
-	configPort   int
+	pathToServer         string
+	sess                 *gexec.Session
+	cmd                  *exec.Cmd
+	healthFile           *os.File
+	configFile           *os.File
+	healthExecutableFile *os.File
+	configPort           int
 )
 
 var _ = SynchronizedBeforeSuite(func() []byte {
@@ -45,17 +47,25 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	configFile, err = ioutil.TempFile("", "config.json")
 	Expect(err).ToNot(HaveOccurred())
 
+	tempDir := os.TempDir()
 	healthFile, err = ioutil.TempFile("", "health.json")
+	Expect(err).ToNot(HaveOccurred())
+
+	healthExecutableFile, err = ioutil.TempFile(tempDir, "health_executable")
+	Expect(err).ToNot(HaveOccurred())
+
+	err = os.Chmod(healthExecutableFile.Name(), 0700)
 	Expect(err).ToNot(HaveOccurred())
 
 	configPort = 1234 + config.GinkgoConfig.ParallelNode
 
 	configContents, err := json.Marshal(healthserver.HealthCheckConfig{
-		Port:            configPort,
-		CertificateFile: "assets/test_certs/test_server.pem",
-		PrivateKeyFile:  "assets/test_certs/test_server.key",
-		CAFile:          "assets/test_certs/test_ca.pem",
-		HealthFileName:  healthFile.Name(),
+		Port:                  configPort,
+		CertificateFile:       "assets/test_certs/test_server.pem",
+		PrivateKeyFile:        "assets/test_certs/test_server.key",
+		CAFile:                "assets/test_certs/test_ca.pem",
+		HealthFileName:        healthFile.Name(),
+		HealthExecutablesGlob: filepath.Join(tempDir, "*"),
 	})
 	Expect(err).NotTo(HaveOccurred())
 
@@ -68,6 +78,11 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	Expect(err).ToNot(HaveOccurred())
 
 	Expect(waitForServer(configPort)).To(Succeed())
+})
+
+var _ = BeforeEach(func() {
+	err := ioutil.WriteFile(healthExecutableFile.Name(), []byte("#!/bin/bash"), 0700)
+	Expect(err).ToNot(HaveOccurred())
 })
 
 var _ = SynchronizedAfterSuite(func() {
